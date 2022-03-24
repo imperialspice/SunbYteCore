@@ -6,7 +6,7 @@ project(sunbYte)
 
 
 #get global includes
-set(OpenCV_DIR ${CMAKE_CURRENT_SOURCE_DIR}/builds/opencv/lib/cmake/opencv4)
+set(OpenCV_DIR deps/builds/opencv/lib/cmake/opencv4)
 find_package(OpenCV REQUIRED NO_MODULE  NO_DEFAULT_PATH)
 
 #tracking
