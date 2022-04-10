@@ -2,7 +2,7 @@
 message(${CMAKE_CURRENT_LIST_DIR})
 set(CMODULEPATH ${CMAKE_CURRENT_LIST_DIR}/comms)
 #targets setup
-add_executable(mod_comms ${CMODULEPATH}/main.cpp)
+add_executable(mod_comms ${CMODULEPATH}/main.cpp )
 
 
 

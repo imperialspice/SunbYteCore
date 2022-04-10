@@ -12,4 +12,4 @@ find_package(OpenCV REQUIRED NO_MODULE  NO_DEFAULT_PATH)
 #tracking
 include(modules/tracking.cmake)
 include(modules/comms.cmake)
-
+include(modules/core.cmake)
