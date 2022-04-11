@@ -7,7 +7,7 @@ add_executable(mod_comms ${CMODULEPATH}/main.cpp )
 
 
 
-set_target_properties(mod_tracking
+set_target_properties(mod_comms
         PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         )
