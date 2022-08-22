@@ -3,9 +3,8 @@
 //
 
 #include "client.h"
-#include <cstring>
 
-std::string cmd;
+
 
 
 void Terminal::establish(std::string address, const char * port) {
@@ -21,33 +20,25 @@ std::string Terminal::transceive(std::string cmd) {
     std::string rtn;
 
 
-    this->client->send(this->client_fd, cmd.data(), cmd.size());
+    this->client->send(this->client_fd, cmd.data(), cmd.size(), true);
     // should be looped to collect all data if smaller than size of buffer.
 
 
     return this->client->receive(this->client_fd);
 }
 
-int main(){
-// Create an inital command loop for communicating with the remote clients;
-    auto term = new Terminal();
-
-    term->establish("/home/middleton/test123", NULL);
-
-
-    for(;;){
-        std::cout << ">> " << std::flush;
-        std::getline(std::cin, cmd);
-
-        std::string rtn = term->transceive(cmd);
-        std::cout <<  rtn << std::endl;
-        if(strncmp(cmd.c_str(), "quit", 4) == 0){
-            break;
-        }
-
+ptr<generic> Terminal::serial_transceive(std::string cmd){
+    if(cmd.find("exe") > 0){
+        std::unique_ptr<generic> msg = std::make_unique<EXE>();
+        msg->msg = std::move(cmd);
+        this->client->sendSerial(this->client_fd, msg);
+        return this->client->receiveSerial(this->client_fd);
     }
-
-    free(term);
-
-};
+    else{
+        std::unique_ptr<generic> msg = std::make_unique<Message>();
+        msg->msg = std::move(cmd);
+        this->client->sendSerial(this->client_fd, msg);
+        return this->client->receiveSerial(this->client_fd);
+    }
+    }
 

@@ -3,11 +3,10 @@
 //
 
 #ifndef SUNBYTE_EXTERNAL_H
+
 #define SUNBYTE_EXTERNAL_H
 
-#include <pigpio.h>
-#include "i2c/smbus.h"
-#include "linux/i2c-dev.h"
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -16,12 +15,13 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <functional>
-#include <cereal/archives/portable_binary.hpp>
 #include <memory>
+#include <generics.h>
+#include <thread>
+#include <condition_variable>
 
-//#define 	BSC_FIFO_SIZE   16
 
-#define ptr std::unique_ptr
+#define _ptr std::unique_ptr
 
 
 class external {
@@ -38,6 +38,13 @@ class TCPStream{
         in_addr* ipv4;
         in6_addr* ipv6;
     };
+public:
+    struct thread_lock{
+        std::thread _thread;
+        std::unique_ptr<std::condition_variable> _lock;
+        std::unique_ptr<std::condition_variable> _lockReady; // acts as a second lock to ensure that the exit flag is ready for an exit
+        std::thread::id closing_thread_id = {};
+    };
 
 
 
@@ -53,11 +60,22 @@ private:
     socklen_t l_addr_s = sizeof(local_addr);
 
 
-    // Stack variables for message divisions etc.
-    char _m_div[3] = {0x0,0x3f,0x3f};
 
+    //thread list
+    std::map<std::thread::id, thread_lock> threads;
+    std::map<std::thread::id, bool> thread_state;
+
+    // Stack variables for message divisions etc.
+    constexpr static char _m_div[1] = {0x04}; // end of transmission.
+
+
+    // async thread cleanup processor
+    void thread_cleanup();
 
 public:
+
+
+
     int socketID;
     addrinfo* res;
     sockaddr_un localaddr;
@@ -66,9 +84,11 @@ public:
 
     int remote(int socketID, addrinfo* res);
 
+    void changeState(std::thread::id _id);
+    thread_lock& getThread(std::thread::id _id);
 
-    void send(int socketfd, char *buffer, size_t buffer_len);
-    std::string receive(int socketfd);
+    static void send(int socketfd, char *buffer, size_t buffer_len, bool flush);
+    static std::string receive(int socketfd);
 
 
 
@@ -76,36 +96,22 @@ public:
 
 
     int local(int socketID, addrinfo* res);
-    int accept(std::function<int(int, TCPStream*)> message_loop);
+
+    int accept(std::function<void(int, TCPStream *self)> message_loop);
     ~TCPStream();
 
-    template<class Generic>
-    void sendSerial(int socketfd, std::unique_ptr<Generic> generic);
+//    template<class Generic>
+    static void sendSerial(int socketfd, std::unique_ptr<generic> &generic);
 
-    template<class Generic>
-    std::unique_ptr<Generic> recieveSerial(int sockedfd);
+//    template<class Generic>
+    static std::unique_ptr<generic> receiveSerial(int sockedfd);
+
+    void createThreadLocks(std::thread _thread);
+
+    void createThreadLocks(std::thread::id thread_id);
 };
 
-class I2CStream{
-    u_int8_t I2CBus;
-    bool Controller; // IE. Master Mode
-    char TxD[BSC_FIFO_SIZE];
-    char RxD[BSC_FIFO_SIZE];
-    unsigned int address;
-    bsc_xfer_t slave;
-    int control;
-    int flags[14];
-    void controlEdit(int address, int *flags);
-
-    void open(int address);
-
-    void read(unsigned int reg);
-    void write(unsigned int reg);
-
-    I2CStream(bool isController, u_int8_t I2CBus);
-    ~I2CStream();
 
 
-};
 
 #endif //SUNBYTE_EXTERNAL_H

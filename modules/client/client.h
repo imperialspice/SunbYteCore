@@ -12,6 +12,8 @@
 #include <iostream>
 #include <string>
 #include <external.h>
+#include <internal.h>
+
 
 
 class Terminal {
@@ -23,6 +25,8 @@ class Terminal {
 public:
     void establish(std::string address, const char * port);
     std::string transceive(std::string cmd);
+
+    ptr<generic> serial_transceive(std::string cmd);
 
     ~Terminal(){
         free(client);

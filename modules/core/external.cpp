@@ -6,6 +6,9 @@
 #include <streambuf>
 #include "external.h"
 #include "algorithm"
+#include <future>
+
+int localError = 0;
 
 
 /*
@@ -80,7 +83,7 @@ int TCPStream::remote(int socketID, addrinfo* res) {
                 continue;
             }
             else{
-                std::cout << "Socket Remote Error: " << errno <<  " Error Code: " << gai_strerror(errno) << std::endl;
+                std::cout << "Socket Remote Error: " << errno <<  " Error Code: " << strerror(errno) << std::endl;
                 exit(errno);
             }
         }
@@ -112,35 +115,68 @@ int TCPStream::local(int socketID, addrinfo* res) {
     return e;
 }
 
-int TCPStream::accept(std::function<int(int, TCPStream*)> message_loop){
+int TCPStream::accept(std::function<void(int, TCPStream *self)> message_loop){
+    int connections = 0;
     for(;;){
-        sockFD = ::accept(socketID, (struct sockaddr *)&local_addr, &l_addr_s);
-        fprintf(stdout, "Accepting Connection : \n");
-        if(sockFD == -1){
+        // seperate out as multithreaded means this object is shared across all threads, stack varables only.
+        int socketFD = ::accept(socketID, (struct sockaddr *)&local_addr, &l_addr_s);
+        connections++;
+        fprintf(stdout, "Accepting Connection : %i\n", connections);
+        if(socketFD == -1){
             std::cerr << "Local Accept Error: " << errno <<  " Error Code: " << gai_strerror(errno) << std::endl;
             continue;
         }
-        int pid = 0;
-//        fork();
-        if(pid == 0){
-            if(message_loop(sockFD, this) == -1) {
-                close(sockFD);
-            break; }
-        }
-
-       close(sockFD);
+        // create new threads for each connection
+//        int pid = getpid();
+// this is passed only for access to thread_state, it might be easier to pass this directly. operations should be fine non-atomic
+        std::thread _thread(message_loop, socketFD, this);
+        createThreadLocks(std::move(_thread)); // pass to create thread locks
+        std::cout << "thead created" << std::endl;
 
     }
     return 0;
 }
 
-void TCPStream::send(int socketfd, char *buffer, size_t buffer_len){
-    long sentBytes = 0;
+void TCPStream::createThreadLocks(std::thread _thread){
+    std::unique_ptr<std::condition_variable> _lock = std::make_unique<std::condition_variable>();
+    std::unique_ptr<std::condition_variable> _lock2 = std::make_unique<std::condition_variable>();
+    thread_lock _tmp = {std::move(_thread), std::move(_lock), std::move(_lock2)}; // move both into position
+    auto id = _tmp._thread.get_id();
+    thread_state.emplace(std::make_pair(id, false));
+    threads.emplace(std::make_pair(id, std::move(_tmp)));
+}
+
+void TCPStream::createThreadLocks(std::thread::id thread_id){ // this one ignores the unique_ptr, since it isn't required for the different classes threads.
+    std::thread _donotuse;
+    std::unique_ptr<std::condition_variable> _lock = std::make_unique<std::condition_variable>();
+    std::unique_ptr<std::condition_variable> _lock2 = std::make_unique<std::condition_variable>();
+    thread_lock _tmp = {std::move(_donotuse), std::move(_lock), std::move(_lock2)}; // move both into position
+    thread_state.emplace(std::make_pair(thread_id, false));
+    threads.emplace(std::make_pair(thread_id, std::move(_tmp)));
+
+}
+
+void TCPStream::changeState(std::thread::id _id) {
+    auto res = thread_state.find(_id);
+    if(res != thread_state.end()) { // ensure not end
+        // then change object state.
+        res->second = true;
+    }
+}
+
+void TCPStream::send(int socketfd, char *buffer, size_t buffer_len, bool flush = true){
+    unsigned long sentBytes = 0;
     size_t remainingBytes = buffer_len;
     int failedCount = 0;
     while(sentBytes != buffer_len){
         //int sent = sendto(socketfd, buffer+sentBytes, remainingBytes,0, res->ai_addr, res->ai_addrlen);
-        int sent = ::send(socketfd, buffer+sentBytes, remainingBytes,0);
+        int sent;
+        try {
+            sent = ::send(socketfd, buffer + sentBytes, remainingBytes, 0);
+        }
+        catch (const char* mes){
+            std::cout << mes << std::endl;
+        }
         if(sent == -1){
             failedCount++;
             if(failedCount == 5){
@@ -151,37 +187,47 @@ void TCPStream::send(int socketfd, char *buffer, size_t buffer_len){
         sentBytes += sent;
         remainingBytes -= sent;
     }
-    ::send(socketfd, this->_m_div, sizeof this->_m_div, 0);
+    if(flush){
+        ::send(socketfd, _m_div, sizeof _m_div, 0);
+    }
+
 
 }
 
 std::string TCPStream::receive(int socketfd) {
     // are we doing serialisation? if we are it could save us time and effort.
-    char buf[1000];
+    char buf[1024]; // if half of the flush bytes are sent after the rest of the message the buffer will never flush.
     std::string a;
     int failedCount = 0;
-    int fullCount = 0;
+    [[maybe_unused]] int fullCount = 0;
     for(;;){
 
         //int sizeRead = recvfrom(socketfd, buf, sizeof buf - 1, 0, NULL,NULL);
         int sizeRead = recv(socketfd, buf, sizeof buf - 1, 0);
-        std::cout << "read data " << sizeRead << " " << buf << std::endl;
+        fprintf(stdout, "Message Rec: %i bytes\n", sizeRead);
         if(sizeRead == -1 || sizeRead == 0){
             failedCount++;
             if(failedCount == 5){
-                fprintf(stderr, "Read Error: %s", gai_strerror(errno));
+                a = "Read Error: ";
+                a.append(strerror(errno));
+                localError = 1;
+                std::cout << "Local Error Set" << std::endl;
                 break;
             }
             continue;
         }
-        int smaller = std::min((int) sizeof this->_m_div, sizeRead);
-        if((memcmp(buf+sizeRead-smaller, this->_m_div, smaller) == 0)){
-            a.append(buf, sizeRead-smaller);
+        int smaller = std::min((int) sizeof _m_div, sizeRead);
+        if((memcmp(buf+sizeRead-smaller, _m_div, smaller) == 0)){
+            for(int i = 0; i < (sizeRead-smaller); i++){
+                a.push_back(*(buf+i));
+            }
 
             break;
         }
 
-        a.append(buf);
+        for(int i = 0; i < sizeRead; i++){
+            a.push_back(*(buf+i));
+        }
         fullCount += sizeRead;
     }
 
@@ -189,10 +235,10 @@ std::string TCPStream::receive(int socketfd) {
 
 }
 
-bool TCPStream::validateIP(addrinfo *book) {
-
-
-}
+//bool TCPStream::validateIP(addrinfo *book) {
+//
+//
+//}
 
 TCPStream::IPList TCPStream::getIP(addrinfo *book) {
 
@@ -206,7 +252,7 @@ TCPStream::IPList TCPStream::getIP(addrinfo *book) {
         if(p->ai_family == AF_INET){
             struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
             in_addr *addr = &(ipv4->sin_addr);
-            ipver = "v4";
+            ipver = (char*)"v4";
             inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
             ip.ipv4 = addr;
             ip.IPv4 = ipstr;
@@ -215,7 +261,7 @@ TCPStream::IPList TCPStream::getIP(addrinfo *book) {
         else{
             struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)p->ai_addr;
             in6_addr *addr = &(ipv6->sin6_addr);
-            ipver = "v6";
+            ipver = (char*)"v6";
             inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
             ip.ipv6 = addr;
             ip.IPv6 = ipstr;
@@ -229,136 +275,111 @@ TCPStream::IPList TCPStream::getIP(addrinfo *book) {
 }
 
 template<class Generic>
-void TCPStream::sendSerial(int socketfd, std::unique_ptr<Generic> generic) {
-    char *tmp;
+Generic rtnObj(std::unique_ptr<Generic> &generic){
+    return *generic.get();
+}
+
+//template<class Generic>
+void TCPStream::sendSerial(int socketfd, std::unique_ptr<generic> &generic) {
+    //std::unique_ptr<char> tmp(new char[1024]);
+    //char tmp[1024];
+    char tmp[20];
+
     int count;
+    // create a new stream for the data
+    std::stringstream serial(std::ios::in|std::ios::out|std::ios::binary);
     // create new serialisation box
-    std::stringstream serial;
-    std::unique_ptr<cereal::PortableBinaryOutputArchive> archive(serial);
-    archive(generic);
+    _ptr<cereal::PortableBinaryOutputArchive> archive = std::make_unique<cereal::PortableBinaryOutputArchive>(serial);
+
+    //cereal::PortableBinaryOutputArchive arc(serial);
+
+
+    (*archive)(generic);
+
     archive.reset(nullptr);
 
-    while(!serial.eof() || !serial.bad()){
-        serial.read(tmp, 1024);
-        count = serial.gcount() == 1024? 1024 : serial.gcount();
-        send(socketfd, tmp, count);
+    // std::cout << serial.rdbuf()->str() << "  :  "  << serial.rdbuf()->str().size() << std::endl;
+    while(serial.good()){
+        serial.read(tmp, 20);
+        count = serial.gcount() == 20 ? 20 : serial.gcount();
+        send(socketfd, tmp, count, false);
     }
-
-
-
+    send(socketfd, nullptr, 0);
 
 }
 
-template<class Generic>
-ptr<Generic> TCPStream::recieveSerial(int sockedfd) {
+_ptr<generic>  TCPStream::receiveSerial(int socketfd) {
+    std::string a = receive(socketfd);
+    _ptr<generic> rec;
+    if(localError != 0){
+        std::cout << "Local Error Unset" << std::endl;
+        localError = 0;
+        // likely no data sent, just return now
+        rec = std::make_unique<Error>(a);
+        return rec;
+    }
+    std::istringstream stream(a);
 
 
+    _ptr<cereal::PortableBinaryInputArchive> archive = std::make_unique<cereal::PortableBinaryInputArchive>(stream);
+//    Generic rec;
 
-}
-
-I2CStream::I2CStream(bool isController, u_int8_t I2CBus){
-    int state;
-    this->Controller = isController;
-    this->I2CBus = I2CBus;
-    gpioInitialise();
-
-    state = gpioSetPullUpDown(0, PI_PUD_UP);
-    if(state == PI_BAD_GPIO || state == PI_BAD_PUD) std::cout << "Pull Up Failed" << std::endl;
-    state = gpioSetPullUpDown(1, PI_PUD_UP);
-    if(state == PI_BAD_GPIO || state == PI_BAD_PUD) std::cout << "Pull Up Failed" << std::endl;
-}
-
-I2CStream::~I2CStream(){
-    gpioTerminate();
-};
-
-void I2CStream::open(int address) {
-    this->address = address;
-}
-
-void I2CStream::read(unsigned int reg) {
-    int status;
-    if(this->Controller){
-        int _h = i2cOpen(this->I2CBus, this->address, 0);
-        // test for the moment
-
-        status = i2cReadWordData(_h, reg);
-        if(status == PI_BAD_HANDLE || status == PI_BAD_PARAM || status == PI_I2C_READ_FAILED) {
-            std::cout << "Read Failed" << std::endl;
-        }
-
+    (*archive)(rec);
+    archive.reset(nullptr);
+    if(rec){
+        return rec;
     }
     else{
-        this->slave.control = this->control;
-        int status = bscXfer(&this->slave);
-        if(status >= 0){
-
-        }
-
+        return std::make_unique<Error>("Invalid Message Received.");
     }
-
-    std::cout << status << std::endl;
-}
-
-void I2CStream::write(unsigned int reg) {
-    int status;
-    if(this->Controller) {
-        int _h = i2cOpen(this->I2CBus, this->address, 0);
-        // test f m
-        status = i2cWriteWordData(_h, reg, 0xFFFF);
-        if (status == PI_BAD_HANDLE || status == PI_BAD_PARAM || status == PI_I2C_WRITE_FAILED) {
-            std::cout << "Write Failed" << std::endl;
-        }
-    }
-    else{
-        // TEST NOTES
-        this->slave.control = this->control;
-        memccpy(this->slave.txBuf, "ABCD", NULL, 4);
-        this->slave.txCnt = 4;
-        int status = bscXfer(&this->slave);
-        if(status >= 0){
-
-        }
-
-    }
+//    std::cout << "Message Type: " << rec->id << std::endl;
 
 }
 
-void I2CStream::controlEdit(int address, int *flags) {
-/*
-    Excerpt from http://abyz.me.uk/rpi/pigpio/cif.html#bscXfer regarding the control bits:
+void TCPStream::thread_cleanup() {
+    // iterate though threads and ready to join any which are exiting.
+    start:
+    std::cout << "1" << std::endl;
+    auto thread_iterator = thread_state.begin();
+    while(thread_iterator != thread_state.end()){
+        std::cout << "2" << std::endl;
+        if(thread_iterator->second){
+            // thread is ready to exit.
+            // fire the condition variable and join.
+            auto& tmp = getThread(thread_iterator->first);
+            std::cout << "3" << std::endl;
+            std::mutex mtx;
+            std::unique_lock<std::mutex> ul2(mtx); // create a mutex here to ensure that the exit is ready
+            tmp.closing_thread_id = std::this_thread::get_id(); // give this threads id to the thread being closing so it can wait
+//            tmp._lockReady->wait(ul2);
+            //tmp._lock->notify_one();
 
-    22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00
-    a  a  a  a  a  a  a  -  -  IT HC TF IR RE TE BK EC ES PL PH I2 SP EN
+            std::cout << "attempting to join" << std::endl;
+            tmp._thread.join();
+            std::cout << "thread joined" << std::endl;
+            tmp._lock.reset();
 
-    Bits 0-13 are copied unchanged to the BSC CR register. See pages 163-165 of the Broadcom
-    peripherals document for full details.
-
-            aaaaaaa defines the I2C slave address (only relevant in I2C mode)
-    IT  invert transmit status flags
-    HC  enable host control
-    TF  enable test FIFO
-    IR  invert receive status flags
-    RE  enable receive
-    TE  enable transmit
-    BK  abort operation and clear FIFOs
-    EC  send control register as first I2C byte
-    ES  send status register as first I2C byte
-    PL  set SPI polarity high
-    PH  set SPI phase high
-    I2  enable I2C mode
-    SP  enable SPI mode
-    EN  enable BSC peripheral
-*/
- // Flags like this: 0b/*IT:*/0/*HC:*/0/*TF:*/0/*IR:*/0/*RE:*/0/*TE:*/0/*BK:*/0/*EC:*/0/*ES:*/0/*PL:*/0/*PH:*/0/*I2:*/0/*SP:*/0/*EN:*/0;
-
-    int f =0; int *flag_c;
-    flag_c = flags;
-    for(int offset = 17; offset > 0; offset++ ){
-        f = (*(flag_c + (17 - offset)) << offset);
+            // erase the data from the maps
+            threads.erase(thread_iterator->first);
+            thread_state.erase(thread_iterator->first);
+            // this invalidated the array iterators, and so they need to be reset.
+            goto start;
+        }
+        thread_iterator = std::next(thread_iterator);
     }
 
-    this->control = (address << 16) | f;
-
-
 }
+
+TCPStream::thread_lock &TCPStream::getThread(std::thread::id _id) {
+    thread_lock& tmp = threads.at(_id);
+    return tmp;
+}
+
+
+
+// enable the templates
+//template void TCPStream::sendSerial(int, std::unique_ptr<Message>&);
+//template std::unique_ptr<Message> TCPStream::receiveSerial<Message>(int);
+//template ptr<generic> TCPStream::receiveSerial(int);
+//template void TCPStream::sendSerial(int, std::unique_ptr<generic>&);
+//template void TCPStream::sendSerial(int, std::unique_ptr<EXE>&);
