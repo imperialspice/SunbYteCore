@@ -114,6 +114,9 @@
 
 // static redec
 
+extern Settings settings;
+
+
 long core::_loopCount = 0;
 bool core::isDebug = true;
 int core::intervalTime = 20;
@@ -148,7 +151,7 @@ void core::loop(int sockfd, TCPStream *_handle) {
             break;
         }
             // move the task to the execution list
-            std::shared_ptr<generic_handle> caller = _int->append(std::move(msg));
+            std::shared_ptr<generic_handle> caller = _int->append(msg);
             // print the size of the task list.
             if (isDebug) std::cout << "Task list is now: " << _int->size() << std::endl;
             // wait until the execution has finished.
@@ -163,6 +166,7 @@ void core::loop(int sockfd, TCPStream *_handle) {
 
 
 }
+
 
 // call process after setup complete, will sit in this loop until an exit event
 // AUG 22 - Redesign to account for task adds, clears the list and then adds new tasks
@@ -213,7 +217,10 @@ void core::mt_process() {
 // schedule a task for execution within the task loop
 // every iteration needs to be added upon loop completion
 
-void core::add(std::string id, std::function<std::unique_ptr<generic>()> factory, int execution_time){
+void core::add(std::string id, std::shared_ptr<generic> factory, int execution_time){
+
+
+
     task_handle _th = {std::move(factory), execution_time};
     mainTaskList.emplace( std::make_pair(id, std::move(_th)));
 }
@@ -221,9 +228,8 @@ void core::add(std::string id, std::function<std::unique_ptr<generic>()> factory
 void core::addTasks(){
     for(auto &a : mainTaskList){
         if(_loopCount % a.second.task_occurance == 0){ // on division add to loop
-            auto _gen = a.second._generic_handle();
             // add pointer to list
-            _int->append(std::move(_gen)); // the handler is ignored since the task is headless, ie no output
+            _int->append((a.second._generic_handle)); // the handler is ignored since the task is headless, ie no output
         }
 
     }
@@ -250,7 +256,8 @@ int main(int argc, char *argv[]){
 //    std::thread process = std::thread(quickProcess);
 
     core test = core();
-    test.add("tracking", tracking_factory, 10);
+    std::shared_ptr<generic> tracking = std::make_shared<tracking_module>(0, true);
+    test.add("tracking", tracking, 10);
     test.mt_connect("/home/middleton/test123", "");
     test.mt_process();
     //test.thread_cleanup(); // run cleanup here? I cant think of anywhere else to put it really.

@@ -10,7 +10,11 @@
 #include <unistd.h>
 #include "opencv2/opencv.hpp"
 #include "opencv2/imgcodecs.hpp"
+#include "settings.h"
+#include "messages.h"
 
+extern Settings settings;
+extern Messages messageList;
 
 class tracking{
 private:
@@ -29,8 +33,9 @@ private:
         cv::Point2f center;
         float radius;
     };
-    double limit = 5;
-    int update_frequency = 5; // update position every X frames
+//    std::shared_ptr<void> limit;
+    int noSunCount = 0; // update position every X frames
+    int noneBeforeSearch = 100;
     int update_int = 0;
     int frameCount =0;
     _location *Location;
@@ -68,6 +73,9 @@ public:
 
     void task_loop();
     void process_loop();
+    void sunScan();
+
+
 
 
 protected:
@@ -99,7 +107,6 @@ public:
     void serialize(Archive &archive){
         archive(id, msg);
     }
-
 
 };
 

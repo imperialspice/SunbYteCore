@@ -106,4 +106,19 @@ make install
 
 fi
 
+#### RapidJSON
+echo "Doing RapidJSON - Full Build"
+if [ ! -d $root/builds/rapidjson ]
+then
+
+mkdir -p $root_dir/builds/rapidjson
+
+OPENCV_CMAKE_OPTIONS=();
+cmake -S $root_dir/downloads/rapidjson-master -B $root_dir/sources/rapidjson "${OPENCV_CMAKE_OPTIONS[@]}" -DCMAKE_INSTALL_PREFIX="$root_dir"/builds/rapidjson
+cd $root_dir/sources/rapidjson
+## builds
+make -j $noCores
+make install
+
+fi
 

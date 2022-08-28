@@ -21,7 +21,7 @@
 #include <condition_variable>
 
 
-#define _ptr std::unique_ptr
+#define _ptr std::shared_ptr
 
 
 class external {
@@ -101,10 +101,10 @@ public:
     ~TCPStream();
 
 //    template<class Generic>
-    static void sendSerial(int socketfd, std::unique_ptr<generic> &generic);
+    static void sendSerial(int socketfd, _ptr<generic> &generic);
 
 //    template<class Generic>
-    static std::unique_ptr<generic> receiveSerial(int sockedfd);
+    static _ptr<generic> receiveSerial(int sockedfd);
 
     void createThreadLocks(std::thread _thread);
 

@@ -17,6 +17,14 @@ void tracking::debug_file(std::string path) {
 }
 
 void tracking::setup() {
+
+    // settings setup
+    settings.registerSetting("tracking/limit", 5, Int);
+    settings.registerSetting("tracking/exposure", 10, Int);
+    //limit = (settings.getPointer("tracking/limit")).;
+
+
+
     if(this->cameraID == -1){
         this->capture = new cv::VideoCapture(this->cameraPath);
         this->capture->set(cv::CAP_PROP_FRAME_HEIGHT, 500);
@@ -27,7 +35,7 @@ void tracking::setup() {
         this->capture = new cv::VideoCapture(this->cameraID, cv::CAP_V4L2);
         this->capture->set(cv::CAP_PROP_AUTO_EXPOSURE, 3);
         this->capture->set(cv::CAP_PROP_AUTO_EXPOSURE, 1);
-        this->capture->set(cv::CAP_PROP_EXPOSURE, 10);
+        this->capture->set(cv::CAP_PROP_EXPOSURE, settings.getInt("tracking/exposure"));
     }
 
     capture->set(cv::CAP_PROP_FPS, 30);
@@ -56,6 +64,9 @@ void tracking::task_loop() {
  *
  */
 void tracking::process_loop(){
+    int limit = settings.getInt("tracking/limit");
+    this->capture->set(cv::CAP_PROP_EXPOSURE, settings.getInt("tracking/exposure"));
+
 
     capture->read(frame); // read from the camera object
     frameCount++; // iterate frame count
@@ -67,18 +78,21 @@ void tracking::process_loop(){
 
     ellipses.clear();
     circles.clear();
+    contours.clear();
+    rtn.clear();
     // convert to grey to make it easier
     cv::cvtColor(frame, grey, cv::COLOR_BGR2GRAY);
     // blur the image to ensure frame is clear
     cv::GaussianBlur(grey, grey2, cv::Size(51,51), 0, 0);
     // covert to binary
     cv::threshold(grey2, grey3, 250, 255, cv::THRESH_BINARY);
+    messageList.set("tracking/grey", grey3);
     //collect moments
     moments = cv::moments(grey3, true);
     // Points
     cv::Point2d center_moment = {moments.m10 / moments.m00, moments.m01 / moments.m00};
     // draw a circle
-    cv::circle(frame, center_moment, this->limit, cv::Scalar(255, 0, 0), 3);
+    cv::circle(frame, center_moment, limit, cv::Scalar(255, 0, 0), 3);
     // find countors
     cv::findContours(grey3, contours, cv::RETR_LIST, CHAIN_APPROX_NONE);
     // iterate though the contours
@@ -91,21 +105,37 @@ void tracking::process_loop(){
         cv::minEnclosingCircle(contour, c, r);
         // calculate the distance from the center of the contour to the center of the moment.
         double distance = sqrt(pow((center_moment.x - c.x),2) + pow((center_moment.y - c.y),2));
-        std::cout << distance << std::endl;
-        std::cout << "Moment X: " << center_moment.x << " Moment Y: " << center_moment.y << std::endl;
-        std::cout << "Contour X: " << c.x << " Contour Y: " << c.y << std::endl;
-        std::cout << "Radius : " << r << std::endl;
+        if(this->debug){
+            std::cout << distance << std::endl;
+            std::cout << "Moment X: " << center_moment.x << " Moment Y: " << center_moment.y << std::endl;
+            std::cout << "Contour X: " << c.x << " Contour Y: " << c.y << std::endl;
+            std::cout << "Radius : " << r << std::endl;
+        }
         // determine if it should be included as a target for the vector
-          if(distance < this->limit && (distance+this->limit) < r) { // if the distance to the center_moment is small enough then include it in the vector
+
+          if(distance < limit && (distance+limit) < r) { // if the distance to the center_moment is small enough then include it in the vector
+              noSunCount = 0;
               if (this->debug) { // only draw in debug mode
                   circle(frame, c, r, Scalar(0, 255, 0), 1);
                   circle(frame, c, 1, Scalar(0, 255, 0), 1);
               }
               //std::cout << "Center is " << c.x - frame_center.x << " : " << c.y - frame_center.y << std::endl;
               avg_x = (center_moment.x + c.x)/2; avg_y = (center_moment.y + c.y)/2;
-              rtn = "Possible sun found: \nX: {avg_x} +  Y:  << {avg_y}";
+              rtn = "Possible sun found: \nX: " + std::to_string(avg_x)  + "  Y:  " + std::to_string(avg_y);
               break;
           }
+          else{
+            noSunCount++;
+            if(noSunCount > noneBeforeSearch){
+                std::cout << "SunSearch Method Enabled" << std::endl;
+            }
+          }
+    }
+    if(contours.empty()){
+        noSunCount++;
+        if(noSunCount > noneBeforeSearch){
+            std::cout << "SunSearch Method Enabled" << std::endl;
+        }
     }
     //cv::resize(frame, smallframe, Size(), 1, 1);
     if(this->debug){
@@ -113,8 +143,16 @@ void tracking::process_loop(){
         cv::imshow("TrackingDebug", frame);
         cv::pollKey();
     }
+    if(!rtn.empty()) std::cout << "Response: " << rtn << std::endl;
 
-    std::cout << rtn << std::endl;
+
+}
+
+void tracking::sunScan() {
+    // assume the current position is zero, then
+    // get information from the Rpi sensors about rotation and other information
+
+
 
 }
 
@@ -201,6 +239,7 @@ int main() {
 */
     int count = 0; int update = 100;
     tracking * track = new tracking(0, true);
+
     //tracking * track = new tracking(0, true);
     track->setup();
     while(1){
@@ -214,13 +253,13 @@ int main() {
 
 }
 
-std::unique_ptr<generic> tracking_factory(std::string path, bool debug){
-    std::unique_ptr<generic> rtn = std::make_unique<tracking_module>(path, debug);
-}
-
-std::unique_ptr<generic> tracking_factory(int id, bool debug){
-    std::unique_ptr<generic> rtn = std::make_unique<tracking_module>(id, debug);
-}
+//std::unique_ptr<generic> tracking_factory(std::string path, bool debug){
+//    std::unique_ptr<generic> rtn = std::make_unique<tracking_module>(path, debug);
+//}
+//
+//std::unique_ptr<generic> tracking_factory(int id, bool debug){
+//    std::unique_ptr<generic> rtn = std::make_unique<tracking_module>(id, debug);
+//}
 
 [[maybe_unused]] std::unique_ptr<generic> tracking_factory(){
     return std::make_unique<tracking_module>(0, true);

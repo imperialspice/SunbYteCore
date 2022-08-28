@@ -26,7 +26,8 @@ link_directories(deps/builds/libevent/lib)
 # get pigpio
 include_directories(deps/builds/pigpio/include)
 link_directories(deps/builds/pigpio/lib)
-
+#get rapidjson
+include_directories(deps/builds/rapidjson/include)
 
 #tracking
 include(modules/tracking.cmake)

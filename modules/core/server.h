@@ -9,11 +9,13 @@
 #include "global.h"
 #include <chrono>
 #include <cmath>
-
+#include "settings.h"
+#include "messages.h"
 
 
 class core{
 private:
+
         static long _loopCount; // loop count is a control for the mainTaskList
         static bool isDebug; // adds extra verbosity
         // Interval time in ms
@@ -30,8 +32,11 @@ private:
         inline static long getTime(); // return inline time function for SPEED
         inline static std::map<std::string, task_handle> mainTaskList;
 
-public:
+        // settings
 
+
+public:
+    static Settings settings;
     static std::shared_ptr<internal> _int; // internal list of tasks
     core(){ // initaliser
     _int = std::make_shared<internal>(); // create global internal
@@ -52,9 +57,11 @@ public:
     int mt_connect(std::string addr, std::string port);
     ~core();
 
-    static void add(std::string id, std::function<std::unique_ptr<generic>()> factory, int execution_time);
+//    static void add(std::string id, std::function<std::unique_ptr<generic>()> factory, int execution_time);
 
     static void addTasks();
+
+    void add(std::string id, std::shared_ptr<generic> factory, int execution_time);
 };
 
 #ifndef SUNBYTE_SERVER_H

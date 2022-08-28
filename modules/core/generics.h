@@ -12,18 +12,17 @@
 #include <cereal/types/memory.hpp>
 #include <cereal/types/string.hpp>
 #include <cereal/types/functional.hpp>
+#include <cereal/types/vector.hpp>
 #include <cereal/types/polymorphic.hpp>
 #include <cereal/archives/portable_binary.hpp>
 
 
 
-
 class generic{
 private:
-
-
 public:
     std::string msg;
+
     std::string id;
 
     template<class Archive>
@@ -85,12 +84,14 @@ public:
 
 };
 
+
+
 class Error : public generic{
 public:
     Error(){
         id = "error";
     }
-    Error(std::string error){
+    explicit Error(std::string error){
         id = "error";
         msg = std::move(error);
     }
@@ -110,14 +111,17 @@ public:
 
 
 
+
 //CEREAL_REGISTER_TYPE(generic);
 CEREAL_REGISTER_TYPE(Message);
 CEREAL_REGISTER_TYPE(EXE);
 CEREAL_REGISTER_TYPE(Error);
 
 
+
 CEREAL_REGISTER_POLYMORPHIC_RELATION(generic, Message);
 CEREAL_REGISTER_POLYMORPHIC_RELATION(generic, EXE);
 CEREAL_REGISTER_POLYMORPHIC_RELATION(generic, Error);
+
 
 #endif //SUNBYTE_GENERICS_H

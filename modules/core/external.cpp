@@ -275,12 +275,12 @@ TCPStream::IPList TCPStream::getIP(addrinfo *book) {
 }
 
 template<class Generic>
-Generic rtnObj(std::unique_ptr<Generic> &generic){
+Generic rtnObj(_ptr<Generic> &generic){
     return *generic.get();
 }
 
 //template<class Generic>
-void TCPStream::sendSerial(int socketfd, std::unique_ptr<generic> &generic) {
+void TCPStream::sendSerial(int socketfd, _ptr<generic> &generic) {
     //std::unique_ptr<char> tmp(new char[1024]);
     //char tmp[1024];
     char tmp[20];
@@ -289,14 +289,14 @@ void TCPStream::sendSerial(int socketfd, std::unique_ptr<generic> &generic) {
     // create a new stream for the data
     std::stringstream serial(std::ios::in|std::ios::out|std::ios::binary);
     // create new serialisation box
-    _ptr<cereal::PortableBinaryOutputArchive> archive = std::make_unique<cereal::PortableBinaryOutputArchive>(serial);
 
-    //cereal::PortableBinaryOutputArchive arc(serial);
+    {
+        cereal::PortableBinaryOutputArchive archive = cereal::PortableBinaryOutputArchive(serial);
 
+        //cereal::PortableBinaryOutputArchive arc(serial);
+        archive(generic);
 
-    (*archive)(generic);
-
-    archive.reset(nullptr);
+    }
 
     // std::cout << serial.rdbuf()->str() << "  :  "  << serial.rdbuf()->str().size() << std::endl;
     while(serial.good()){
@@ -311,7 +311,7 @@ void TCPStream::sendSerial(int socketfd, std::unique_ptr<generic> &generic) {
 _ptr<generic>  TCPStream::receiveSerial(int socketfd) {
     std::string a = receive(socketfd);
     _ptr<generic> rec;
-    if(localError != 0){
+    if (localError != 0) {
         std::cout << "Local Error Unset" << std::endl;
         localError = 0;
         // likely no data sent, just return now
@@ -320,12 +320,13 @@ _ptr<generic>  TCPStream::receiveSerial(int socketfd) {
     }
     std::istringstream stream(a);
 
-
-    _ptr<cereal::PortableBinaryInputArchive> archive = std::make_unique<cereal::PortableBinaryInputArchive>(stream);
+    { // ensure it is flushed to stream,
+    cereal::PortableBinaryInputArchive archive = cereal::PortableBinaryInputArchive(stream);
 //    Generic rec;
+    archive(rec);
 
-    (*archive)(rec);
-    archive.reset(nullptr);
+    }
+
     if(rec){
         return rec;
     }

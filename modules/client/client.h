@@ -26,7 +26,7 @@ public:
     void establish(std::string address, const char * port);
     std::string transceive(std::string cmd);
 
-    ptr<generic> serial_transceive(std::string cmd);
+    _ptr<generic> serial_transceive(std::string cmd);
 
     ~Terminal(){
         free(client);
