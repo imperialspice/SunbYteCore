@@ -5,6 +5,8 @@
 #include "client.h"
 #include "settings.h"
 #include "messages.h"
+#include <ostream>
+#include <fstream>
 
 
 
@@ -69,10 +71,13 @@ _ptr<generic> Terminal::serial_transceive(std::string cmd){
         auto tmp = break_path(cmd);
         _ptr<generic> msg(std::make_shared<msg_Messages>(tmp[1]));
         TCPStream::sendSerial(this->client_fd, msg);
-        return TCPStream::receiveSerial(this->client_fd);
-
-
-
+        auto it = TCPStream::receiveSerial(this->client_fd);
+        if(tmp.size() > 2 && tmp[2] == ">>" && !tmp[3].empty() && it->id == "message"){
+            auto dump = dynamic_cast<msg_Messages*>(it.get())->dump_data();
+            std::ofstream filedump(tmp[3], std::ofstream::binary);
+            filedump.write(dump.data(), dump.size());
+        }
+        return it;
     }
     else{
         std::cout << "Please format the command as:\n settings path type value." << std::endl;

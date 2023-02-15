@@ -11,5 +11,6 @@ target_link_libraries(mod_speedtest ${OpenCV_LIBS})
 
 set_target_properties(mod_speedtest
         PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/builds"
         )
+

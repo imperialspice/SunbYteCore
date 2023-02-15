@@ -9,8 +9,9 @@ link_libraries(pthread)
 link_directories(${CMAKE_CURRENT_SOURCE_DIR}/cmake-build-debug-clang)
 
 #get global includes
-set(OpenCV_DIR deps/builds/opencv/lib/cmake/opencv4)
-find_package(OpenCV REQUIRED NO_MODULE  NO_DEFAULT_PATH)
+#set(OpenCV_DIR deps/builds/opencv/lib/cmake/opencv4)
+#find_package(OpenCV REQUIRED NO_MODULE NO_DEFAULT_PATH)
+find_package(OpenCV REQUIRED NO_MODULE )
 #get cereal
 include_directories(deps/builds/cereal/include)
 #get libgpiod
@@ -29,6 +30,15 @@ link_directories(deps/builds/pigpio/lib)
 #get rapidjson
 include_directories(deps/builds/rapidjson/include)
 
+#get nema
+include_directories(deps/builds/nmea/include)
+link_directories(deps/builds/nmea/lib)
+
+
+
+include_directories(deps/builds/asi/include)
+link_directories(deps/builds/asi/lib/x64)
+
 #tracking
 include(modules/tracking.cmake)
 include(modules/comms.cmake)
@@ -38,3 +48,6 @@ include(modules/sensors.cmake)
 include(modules/client.cmake)
 include(modules/test.cmake)
 include(modules/unit_tests.cmake)
+include(modules/camera_primary.cmake)
+include(modules/rpi.cmake)
+include(modules/odroid.cmake)

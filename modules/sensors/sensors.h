@@ -5,12 +5,14 @@
 #ifndef SUNBYTE_SENSORS_H
 #define SUNBYTE_SENSORS_H
 
+#include "generics.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <spidev_lib++.h>
-#include <i2c/smbus.h>
-#include <linux/i2c-dev.h>
+#include "ina219.h"
+#include "bno055.h"
+
+#include <nmea/nmea.h>
 
 
 /* We have three i2c sensors, one SPI and one serial on the sensor board, so we need code that communicates with all of those.
@@ -23,7 +25,34 @@
 
 class sensors {
 
+    INA219 currentSensor;
+    int i2cfd;
+
+
+
+
+
+
+
 };
 
+
+class sensors_module : public sensors, public generic{
+
+public:
+    sensors_module(){
+
+    }
+
+    void run (){
+
+
+
+    }
+
+
+
+
+};
 
 #endif //SUNBYTE_SENSORS_H

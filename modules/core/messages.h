@@ -54,6 +54,12 @@ public:
         return msg;
     }
 
+    message msg_bool(bool b){
+        message msg;
+        msg.data.emplace_back((char)b);
+        return msg;
+    }
+
 
     message get(std::string id){
         auto it = data_list.find(id);
@@ -71,26 +77,20 @@ public:
         data_list.insert_or_assign(id, i);
     }
 
+
     void set(std::string id, cv::Mat mat){
         auto i = msg_cv(mat);
         i.type = "opecvmat";
         data_list.insert_or_assign(id, i);
     }
 
-    static cv::Mat returnType(std::vector<char> data){
-        cv::Mat rtn;
-        std::stringstream str;
-        str.write(data.data(), data.size());
 
-    }
 
 };
 
-Messages messageList = {};
 
 class msg_Messages : public generic{
     std::string name;
-
     std::vector<char> data;
 
 
@@ -100,16 +100,14 @@ public:
       id = "message";
     }
     explicit msg_Messages(std::string namel){
+        id = "message";
         name = namel;
     }
 
-    void run() override{
-        if(name.empty()) {msg = ""; return;}
-        auto mess = messageList.get(name);
-        data.insert(data.end(), mess.data.begin(), mess.data.end());
-        msg = "gotten returned data: ";
-        msg = msg + std::string(data.begin(), data.end());
+    void run() override;
 
+    std::vector<char> dump_data(){
+      return data;
     }
 
 

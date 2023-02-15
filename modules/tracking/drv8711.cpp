@@ -22,47 +22,47 @@ uint16_t drv8711::read(uint8_t ChipSelect, drv8711::reg_select reg) {
     return recv;
 }
 
-void drv8711::enableDriver(int csel = 0) {
-    registerMaps.at(csel).ctrl_register |= (1 << 0);
-    write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register);
+void drv8711::enableDriver() {
+    registerMaps.ctrl_register |= (1 << 0);
+    write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
 
 }
 
-void drv8711::disableDriver(int csel = 0) {
-    registerMaps.at(csel).ctrl_register &= ~(1 << 0);
-    write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register);
+void drv8711::disableDriver() {
+    registerMaps.ctrl_register &= ~(1 << 0);
+    write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
 }
 
 /*
  *  direction: true for forward, false for backward
  *
  */
-void drv8711::setDirection(int csel = 0, bool direction = false){
+void drv8711::setDirection(bool direction = false){
     if(direction){
-        registerMaps.at(csel).ctrl_register  |= (1 << 1);
+        registerMaps.ctrl_register  |= (1 << 1);
     }
     else{
-        registerMaps.at(csel).ctrl_register &= ~(1 << 1);
+        registerMaps.ctrl_register &= ~(1 << 1);
     }
-    write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register);
+    write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
 }
 
-bool drv8711::getDirection(int csel = 0){
-    return registerMaps.at(csel).ctrl_register >> 1 & 1;
+bool drv8711::getDirection(){
+    return registerMaps.ctrl_register >> 1 & 1;
 }
 
-void drv8711::step(int csel = 0){
-    this->write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register | (1 << 2));
+void drv8711::step(){
+    this->write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register | (1 << 2));
 }
 
-void drv8711::setStepMode(int csel = 0, HPSDStepMode step = HPSDStepMode::MicroStep4){
-    registerMaps.at(csel).ctrl_register =
-            (registerMaps.at(csel).ctrl_register & 0b111110000111) | (((uint8_t) step) << 3);
+void drv8711::setStepMode( HPSDStepMode step = HPSDStepMode::MicroStep4){
+    registerMaps.ctrl_register =
+            (registerMaps.ctrl_register & 0b111110000111) | (((uint8_t) step) << 3);
 
-    this->write(csel, reg_select::CTRL, registerMaps.at(0).ctrl_register);
+    this->write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
 }
 
-void drv8711::setTorque(int csel, uint16_t current_limit){
+void drv8711::setTorque( uint16_t current_limit){
     current_limit = (current_limit > 8000) ? 8000:current_limit;
     uint8_t isgainBits = 0b11;
     uint16_t torqueBits = ((uint32_t)768  * current_limit) / 6875;
@@ -74,24 +74,24 @@ void drv8711::setTorque(int csel, uint16_t current_limit){
         torqueBits >>= 1;
     }
 
-    registerMaps.at(csel).ctrl_register =
-            (registerMaps.at(csel).ctrl_register & 0b110011111111) | (isgainBits << 8);
-    registerMaps.at(csel).torque_register =
-            (registerMaps.at(csel).torque_register & 0b111100000000) | torqueBits;
+    registerMaps.ctrl_register =
+            (registerMaps.ctrl_register & 0b110011111111) | (isgainBits << 8);
+    registerMaps.torque_register =
+            (registerMaps.torque_register & 0b111100000000) | torqueBits;
 
-    write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register);
-    write(csel, reg_select::TORQUE, registerMaps.at(csel).torque_register);
+    write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
+    write(shadowSet, reg_select::TORQUE, registerMaps.torque_register);
 }
 
-void drv8711::setDecayMode(int csel, HPSDDecayMode mode){
-    registerMaps.at(csel).decay_register =
-            (registerMaps.at(csel).decay_register & 0b00011111111) | (((uint8_t)mode & 0b111) << 8);
-    write(csel, reg_select::DECAY, registerMaps.at(csel).decay_register);
+void drv8711::setDecayMode(HPSDDecayMode mode){
+    registerMaps.decay_register =
+            (registerMaps.decay_register & 0b00011111111) | (((uint8_t)mode & 0b111) << 8);
+    write(shadowSet, reg_select::DECAY, registerMaps.decay_register);
 }
 
-HPSDStatusBit drv8711::getStatus(int csel){
-    uint16_t rd = read(csel, reg_select::STATUS);
-    registerMaps.at(csel).status_register = rd;
+HPSDStatusBit drv8711::getStatus(){
+    uint16_t rd = read(shadowSet, reg_select::STATUS);
+    registerMaps.status_register = rd;
     HPSDStatusBit tn;
     tn.OTS = rd >> 0;
     tn.AOCP = rd >> 1;
@@ -104,43 +104,43 @@ HPSDStatusBit drv8711::getStatus(int csel){
     return tn;
 }
 
-HPSDStatusBit drv8711::getFaults(int csel){
-    return getStatus(csel);
+HPSDStatusBit drv8711::getFaults(){
+    return getStatus();
 }
 
-void drv8711::clearFaults(int csel){
-    registerMaps.at(csel).status_register = ~0b00111111;
-    write(csel, reg_select::STATUS, registerMaps.at(csel).status_register);
+void drv8711::clearFaults(){
+    registerMaps.status_register = ~0b00111111;
+    write(shadowSet, reg_select::STATUS, registerMaps.status_register);
 }
-void drv8711::clearStatus(int csel){
-    registerMaps.at(csel).status_register = 0;
-    write(csel, reg_select::STATUS, registerMaps.at(csel).status_register);
-}
-
-void drv8711::applySettings(int csel){
-    write(csel, reg_select::CTRL, registerMaps.at(csel).ctrl_register);
-    write(csel, reg_select::STATUS, registerMaps.at(csel).status_register);
-    write(csel, reg_select::DECAY, registerMaps.at(csel).decay_register);
-    write(csel, reg_select::TORQUE, registerMaps.at(csel).torque_register);
-    write(csel, reg_select::BLANK, registerMaps.at(csel).blank_register);
-    write(csel, reg_select::DRIVE, registerMaps.at(csel).drive_register);
-    write(csel, reg_select::OFF, registerMaps.at(csel).off_register);
-    write(csel, reg_select::STALL, registerMaps.at(csel).stall_register);
+void drv8711::clearStatus(){
+    registerMaps.status_register = 0;
+    write(shadowSet, reg_select::STATUS, registerMaps.status_register);
 }
 
-bool drv8711::verifySettings(int csel){
+void drv8711::applySettings(){
+    write(shadowSet, reg_select::CTRL, registerMaps.ctrl_register);
+    write(shadowSet, reg_select::STATUS, registerMaps.status_register);
+    write(shadowSet, reg_select::DECAY, registerMaps.decay_register);
+    write(shadowSet, reg_select::TORQUE, registerMaps.torque_register);
+    write(shadowSet, reg_select::BLANK, registerMaps.blank_register);
+    write(shadowSet, reg_select::DRIVE, registerMaps.drive_register);
+    write(shadowSet, reg_select::OFF, registerMaps.off_register);
+    write(shadowSet, reg_select::STALL, registerMaps.stall_register);
+}
+
+bool drv8711::verifySettings(){
     return
-                    read(csel, reg_select::CTRL) == registerMaps.at(csel).ctrl_register &&
-                    read(csel, reg_select::TORQUE) == registerMaps.at(csel).torque_register &&
-                    read(csel, reg_select::OFF) == registerMaps.at(csel).off_register &&
-                    read(csel, reg_select::BLANK) == registerMaps.at(csel).blank_register &&
-                    read(csel, reg_select::DECAY) == registerMaps.at(csel).decay_register &&
-                    read(csel, reg_select::STALL) == registerMaps.at(csel).stall_register &&
-                    read(csel, reg_select::DRIVE) == registerMaps.at(csel).drive_register;
+                    read(shadowSet, reg_select::CTRL) == registerMaps.ctrl_register &&
+                    read(shadowSet, reg_select::TORQUE) == registerMaps.torque_register &&
+                    read(shadowSet, reg_select::OFF) == registerMaps.off_register &&
+                    read(shadowSet, reg_select::BLANK) == registerMaps.blank_register &&
+                    read(shadowSet, reg_select::DECAY) == registerMaps.decay_register &&
+                    read(shadowSet, reg_select::STALL) == registerMaps.stall_register &&
+                    read(shadowSet, reg_select::DRIVE) == registerMaps.drive_register;
 
 }
 
-void drv8711::reset(int csel =0 ){
-    defaultValues(csel);
-    applySettings(csel);
+void drv8711::reset( ){
+    defaultValues();
+    applySettings();
 }

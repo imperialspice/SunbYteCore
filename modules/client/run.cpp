@@ -12,7 +12,7 @@ int main(){
 // Create an inital command loop for communicating with the remote clients;
     auto *term = new Terminal();
 
-    term->establish("/home/middleton/test123", NULL);
+    term->establish("172.16.18.151", "42069");
 
 
     for(;;){

@@ -76,7 +76,7 @@ TCPStream::~TCPStream() {
 int TCPStream::remote(int socketID, addrinfo* res) {
     // let kernel choose local socket for outward connections
     int e;
-    for(auto p = res; p != NULL; p = p->ai_next){
+    for(auto p = res; (p != nullptr && p != (void*)0x40); p = p->ai_next){
         e = connect(socketID, res->ai_addr, res->ai_addrlen);
         if(e == -1){
             if(p->ai_next != NULL){
@@ -102,10 +102,12 @@ int TCPStream::local(int socketID, addrinfo* res) {
         std::cerr << "Set Socket Options Local Error: " << errno <<  " Error Code: " << strerror(errno) << std::endl;
         exit(errno);
     }
+
     int s = remove(((struct sockaddr_un*)res->ai_addr)->sun_path);
     if(s != 0){
-        fprintf(stderr, "Socket could not be created\nExisting file could not be removed or replaced.");
+        fprintf(stderr, "Socket could not be created\nExisting file could not be removed or replaced.\n");
     }
+
     int e = bind(socketID, res->ai_addr, res->ai_addrlen);
     if(e == -1){
         std::cerr << "Socket Local Error: " << errno <<  " Error Code: " << strerror(errno) << std::endl;
@@ -245,7 +247,7 @@ TCPStream::IPList TCPStream::getIP(addrinfo *book) {
     IPList ip = IPList();
     char ipstr[INET6_ADDRSTRLEN];
     addrinfo* p;
-    for(p = book; p != NULL; p = p->ai_next){
+    for(p = book; (p != nullptr && p != (void*)0x40); p = p->ai_next){
 
         char* ipver;
 

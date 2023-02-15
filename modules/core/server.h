@@ -6,7 +6,6 @@
 
 #include "external.h"
 #include "internal.h"
-#include "global.h"
 #include <chrono>
 #include <cmath>
 #include "settings.h"

@@ -3,6 +3,8 @@
   <component name="CMakeWorkspace" PROJECT_DIR="$PROJECT_DIR$" />
   <component name="CidrRootsConfiguration">
     <excludeRoots>
+      <file path="$PROJECT_DIR$/cmake-build-debug-m1" />
+      <file path="$PROJECT_DIR$/cmake-build-release" />
       <file path="$PROJECT_DIR$/deps/builds" />
       <file path="$PROJECT_DIR$/deps/sources" />
     </excludeRoots>

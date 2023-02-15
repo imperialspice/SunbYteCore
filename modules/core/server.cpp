@@ -8,9 +8,6 @@
 #include <fstream>
 #include <chrono>
 #include <csignal>
-// REMOVE ME
-#include <../tracking/main.hpp>
-//
 
 // OLD Code
 //std::shared_ptr<internal> global::_global_internal = std::make_shared<internal>();
@@ -199,7 +196,8 @@ void core::connect(std::string addr, std::string port) {
             tcp = new TCPStream();
 
             const char * c_port = port.empty() ? NULL:port.c_str(); // conversion for connection
-            tcp->establish(addr.c_str(), c_port);
+            const char * c_addr = addr.empty() ? NULL:addr.c_str();
+            tcp->establish(c_addr, c_port);
             tcp->local(tcp->socketID, tcp->res);
             tcp->accept(loop); // needs static memeber, has this passed as parameter
 }
@@ -218,8 +216,6 @@ void core::mt_process() {
 // every iteration needs to be added upon loop completion
 
 void core::add(std::string id, std::shared_ptr<generic> factory, int execution_time){
-
-
 
     task_handle _th = {std::move(factory), execution_time};
     mainTaskList.emplace( std::make_pair(id, std::move(_th)));
@@ -241,27 +237,4 @@ core::~core() {
     thread_process->join();
     thread_connect->join();
     delete tcp;
-}
-
-
-int main(int argc, char *argv[]){
-
-    std::string a;
-
-//    auto a= new TCPStream();
-//    a->establish(NULL, "2223");
-//    a->local(a->socketID, a->res);
-//    a->accept(accept_loop);
-//    std::thread tcp = std::thread(establishConnectionThread);
-//    std::thread process = std::thread(quickProcess);
-
-    core test = core();
-    std::shared_ptr<generic> tracking = std::make_shared<tracking_module>(0, true);
-    test.add("tracking", tracking, 10);
-    test.mt_connect("/home/middleton/test123", "");
-    test.mt_process();
-    //test.thread_cleanup(); // run cleanup here? I cant think of anywhere else to put it really.
-    std::getline(std::cin, a);
-    exit(0);
-
 }

@@ -4,8 +4,12 @@
 
 #include <cstdint>
 #include <spidev_lib++.h>
+#include <gpiod.hpp>
 #include <string>
 #include <vector>
+#include <map>
+
+#define NOTONPLATFORM
 
 #ifndef SUNBYTE_DRV8711_H
 #define SUNBYTE_DRV8711_H
@@ -80,22 +84,32 @@ struct HPSDStatusBit
 
 
 class selectChip{
-    int chipPin;
+    gpiod::line chipSelect;
+    std::string name; // TODO: Define this from connections to drivers
+
 public:
-    selectChip(int chipPin){
+    explicit selectChip(int chipPin){
+#ifndef NOTONPLATFORM
 //        digitalWrite(chipPin, 1);
-        this->chipPin = chipPin;
+        chipSelect = gpiod::chip("").get_line(chipPin);
+        chipSelect.set_direction_output(GPIOD_LINE_ACTIVE_STATE_HIGH);
+#endif
     }
     ~selectChip(){
+#ifndef NOTONPLATFORM
 //        digitalWrite(this->chipPin, 0);
+        chipSelect.set_value(GPIOD_LINE_ACTIVE_STATE_LOW);
+#endif
     }
 };
 
 class drv8711 {
 
+
     // uses the SPIDEV library because honestly its easier.
     SPI *_spi;
 
+    int shadowSet;
 /* Copied from Pololu High Power Motor Driver */
 
     struct reg_maps {
@@ -172,7 +186,7 @@ class drv8711 {
 
     };
 
-    std::vector<reg_maps> registerMaps = {};
+    reg_maps registerMaps = {};
     enum struct reg_select : uint8_t;
     uint16_t buf_write = 0;
     uint16_t buf_read = 0;
@@ -181,16 +195,17 @@ class drv8711 {
         return reg_maps({0xC10, 0x1FF, 0x030, 0x080, 0x110, 0x040, 0xA59, 0});
     }
 
-    void defaultValues(int csel){
-        registerMaps.at(csel) = {0xC10, 0x1FF, 0x030, 0x080, 0x110, 0x040, 0xA59, 0};
+    void setDefaultValus(){
+
+        registerMaps = {0xC10, 0x1FF, 0x030, 0x080, 0x110, 0x040, 0xA59, 0};
     }
 
 public:
-    drv8711(const std::string& spidev, int numberOfChips){
+    drv8711(const std::string& spidev, int ChipSelect){
+        shadowSet = ChipSelect;
         _spi = new SPI(spidev.c_str());
-        for(int i = 0;  i < numberOfChips ; i++ ){
-            registerMaps.push_back(defaultValues());
-        }
+        registerMaps = defaultValues();
+
 
     }
 // {0xC10, 0x1FF, 0x030, 0x080 ,0x110, 0x040, 0xA59, 0, 0}
@@ -218,35 +233,35 @@ public:
     uint16_t read(uint8_t ChipSelect, reg_select reg);
 
 
-    void step(int csel);
+    void step();
 
-    bool getDirection(int csel);
+    bool getDirection();
 
-    void setDirection(int csel, bool direction);
+    void setDirection(bool direction);
 
-    void disableDriver(int csel);
+    void disableDriver();
 
-    void enableDriver(int csel);
+    void enableDriver();
 
-    void setStepMode(int csel, HPSDStepMode step);
+    void setStepMode(HPSDStepMode step);
 
-    void setTorque(int csel, uint16_t current_limit);
+    void setTorque(uint16_t current_limit);
 
-    void setDecayMode(int csel, HPSDDecayMode mode);
+    void setDecayMode(HPSDDecayMode mode);
 
-    HPSDStatusBit getStatus(int csel);
+    HPSDStatusBit getStatus();
 
-    HPSDStatusBit getFaults(int csel);
+    HPSDStatusBit getFaults();
 
-    void clearFaults(int csel);
+    void clearFaults();
 
-    void clearStatus(int csel);
+    void clearStatus();
 
-    void applySettings(int csel);
+    void applySettings();
 
-    bool verifySettings(int csel);
+    bool verifySettings();
 
-    void reset(int csel);
+    void reset();
 
 };
 

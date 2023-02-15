@@ -4,7 +4,7 @@
 
 #ifndef SUNBYTE_SETTINGS_H
 #define SUNBYTE_SETTINGS_H
-//
+/*
 //#include <map>
 //#include <string>
 //#include <vector>
@@ -187,7 +187,7 @@
 //    }
 //    return rtn;
 //}
-//
+*/
 
 #include <map>
 #include <string>
@@ -216,6 +216,7 @@ public:
 enum types{
     String,
     Int,
+    Bool,
     Null
 
 };
@@ -243,6 +244,11 @@ struct Value{
         return static_cast<int*>(store.get());
     }
 
+    bool* getBool(){
+        if(_type != types::Bool) throw settings_exception("This setting is not a Bool.");
+        return static_cast<bool*>(store.get());
+    }
+
 
 };
 
@@ -267,6 +273,12 @@ public:
         store.insert_or_assign(path, std::move(val));
     }
 
+    void registerSettings(std::string path, bool value, types type) {
+        std::shared_ptr<void> tmp = std::make_shared<bool>(value);
+        Value val(tmp, (type));
+        store.insert_or_assign(path, std::move(val));
+    }
+
     std::shared_ptr<void> getPointer(std::string path){
         auto it = store.find(path);
         if(it == store.end()) return std::make_shared<int>(0);
@@ -283,6 +295,12 @@ public:
         auto it = store.find(path);
         if(it == store.end()) return 0;
         return *it->second.getInt();
+    }
+
+    bool getBool(std::string path){
+        auto it = store.find(path);
+        if(it == store.end()) return 0;
+        return *it->second.getBool();
     }
 
     void* get(std::string path){
@@ -319,9 +337,11 @@ public:
 
 };
 
-Settings settings = {};
+
 
 class msg_Settings : public generic{
+
+
 
     std::string path;
     std::string data;
@@ -330,47 +350,20 @@ class msg_Settings : public generic{
 
 
 public:
-    msg_Settings() {
-            id = "settings";
-    }
+    msg_Settings(std::string lpath, std::string ltype, std::string ldatas);
+    msg_Settings();
 
-    msg_Settings(std::string lpath, std::string ltype, std::string ldatas = ""){
-        id = "settings";
-        path = std::move(lpath);
-        data = std::move(ldatas);
-        type = std::move(ltype);
-        msg = "";
 
-    }
-    void run() override{
-        std::shared_ptr<void> tmp;
-        types t1;
-        if(type == "Int"){
-            tmp = std::make_shared<int>(std::stoi(data));
-            t1 = Int;
-        }
-        else if(type == "String"){
-            tmp = std::make_shared<std::string>(data);
-            t1 = String;
-        }
-        else{
-            t1 = Null;
-        }
-        Value val(tmp, t1);
-        msg = settings.set(path, val);
-    }
 
     template<class Archive>
     void serialize(Archive &archive){
         archive(id, path, data, type, msg);
     }
+
+    void run() override;
 };
 
 
-
-CEREAL_REGISTER_TYPE(msg_Settings);
-
-CEREAL_REGISTER_POLYMORPHIC_RELATION(generic, msg_Settings);
 
 
 
